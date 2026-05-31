@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Shark Species Classification — ISB46703 AI Project
 
 ## Domain: Animal Subspecies (Shark)
@@ -80,3 +81,7 @@ shark_plots/
 6. Nurse Shark
 7. Mako Shark
 8. Blacktip Reef Shark
+=======
+# shark-species-classifier
+ISB46703 AI Project - Shark Species Classification
+>>>>>>> 9492417e93613c8dd313c17dc623185ca515f794
