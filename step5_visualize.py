@@ -9,7 +9,6 @@ import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import seaborn as sns
 from tensorflow import keras
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -47,6 +46,25 @@ def load_results():
             all_results[name] = json.load(f)
     return all_results
 
+# ── Load Model Helper (handles both .keras and .h5) ──────────
+def load_model_safe(name):
+    keras_path = os.path.join(RESULTS_DIR, f"{name}_final.keras")
+    h5_path    = os.path.join(RESULTS_DIR, f"{name}_final.h5")
+    try:
+        if os.path.exists(keras_path):
+            model = keras.models.load_model(keras_path)
+        else:
+            model = keras.models.load_model(h5_path, compile=False)
+        model.compile(
+            optimizer="adam",
+            loss="categorical_crossentropy",
+            metrics=["accuracy"]
+        )
+        return model
+    except Exception as e:
+        print(f"  Could not load {name}: {e}")
+        return None
+
 # ─────────────────────────────────────────────────────────────
 # PLOT 1: Dataset Distribution
 # ─────────────────────────────────────────────────────────────
@@ -56,21 +74,21 @@ def plot_dataset_distribution():
     counts = {"train": [], "val": [], "test": []}
     for split in counts:
         split_path = os.path.join(SPLIT_DIR, split)
-        for cls in os.listdir(split_path):
+        for cls in sorted(os.listdir(split_path)):
             cls_path = os.path.join(split_path, cls)
             if os.path.isdir(cls_path):
                 counts[split].append(len(os.listdir(cls_path)))
 
-    x = np.arange(len(CLASS_NAMES))
+    x     = np.arange(len(CLASS_NAMES))
     width = 0.25
 
     fig, ax = plt.subplots(figsize=(14, 6))
     fig.patch.set_facecolor("#0D1B2A")
     ax.set_facecolor("#0D1B2A")
 
-    bars1 = ax.bar(x - width, counts["train"], width, label="Train",      color="#E63946", alpha=0.9)
-    bars2 = ax.bar(x,         counts["val"],   width, label="Validation",  color="#2A9D8F", alpha=0.9)
-    bars3 = ax.bar(x + width, counts["test"],  width, label="Test",        color="#E9C46A", alpha=0.9)
+    ax.bar(x - width, counts["train"], width, label="Train",      color="#E63946", alpha=0.9)
+    ax.bar(x,         counts["val"],   width, label="Validation",  color="#2A9D8F", alpha=0.9)
+    ax.bar(x + width, counts["test"],  width, label="Test",        color="#E9C46A", alpha=0.9)
 
     ax.set_xlabel("Shark Species", color="white", fontsize=12)
     ax.set_ylabel("Number of Images", color="white", fontsize=12)
@@ -103,8 +121,8 @@ def plot_accuracy_curves(all_results):
         epochs  = range(1, len(history["accuracy"]) + 1)
 
         ax.set_facecolor("#0D1B2A")
-        ax.plot(epochs, history["accuracy"],     color=color,   linewidth=2,   label="Train Acc")
-        ax.plot(epochs, history["val_accuracy"], color="white", linewidth=2,   linestyle="--", label="Val Acc")
+        ax.plot(epochs, history["accuracy"],     color=color,   linewidth=2, label="Train Acc")
+        ax.plot(epochs, history["val_accuracy"], color="white", linewidth=2, linestyle="--", label="Val Acc")
         ax.set_title(name, color=color, fontsize=14, fontweight="bold")
         ax.set_xlabel("Epoch", color="white")
         ax.set_ylabel("Accuracy", color="white")
@@ -150,7 +168,7 @@ def plot_loss_curves(all_results):
     print("  Saved: 3_loss_curves.png")
 
 # ─────────────────────────────────────────────────────────────
-# PLOT 4: Confusion Matrices (all 3 models)
+# PLOT 4: Confusion Matrices (all 3 models) — FIXED
 # ─────────────────────────────────────────────────────────────
 def plot_confusion_matrices():
     print("Plotting confusion matrices...")
@@ -169,31 +187,40 @@ def plot_confusion_matrices():
     fig.suptitle("Confusion Matrices on Test Set", color="white", fontsize=16, fontweight="bold", y=1.02)
 
     for ax, (name, color) in zip(axes, zip(MODEL_NAMES, MODEL_COLORS)):
-        model_path = os.path.join(RESULTS_DIR, f"{name}_final.h5")
-        model = keras.models.load_model(model_path)
+        model = load_model_safe(name)
 
-        test_gen.reset()
-        y_pred  = np.argmax(model.predict(test_gen, verbose=0), axis=1)
-        y_true  = test_gen.classes
-        cm      = confusion_matrix(y_true, y_pred)
-        cm_norm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
+        if model is None:
+            ax.set_title(f"{name}\n(failed to load)", color="red", fontsize=12)
+            ax.set_facecolor("#0D1B2A")
+            continue
 
-        sns.heatmap(
-            cm_norm, annot=True, fmt=".2f", cmap="Blues",
-            xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES,
-            ax=ax, cbar=False, annot_kws={"size": 8}
-        )
-        ax.set_title(name, color=color, fontsize=14, fontweight="bold")
-        ax.set_xlabel("Predicted", color="white", fontsize=10)
-        ax.set_ylabel("Actual",    color="white", fontsize=10)
-        ax.tick_params(colors="white", labelsize=8)
-        ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right", color="white")
-        ax.set_yticklabels(CLASS_NAMES, rotation=0, color="white")
-        ax.set_facecolor("#0D1B2A")
+        try:
+            test_gen.reset()
+            y_pred  = np.argmax(model.predict(test_gen, verbose=0), axis=1)
+            y_true  = test_gen.classes
+            cm      = confusion_matrix(y_true, y_pred)
+            cm_norm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
 
-        # Print classification report
-        print(f"\n  Classification Report - {name}:")
-        print(classification_report(y_true, y_pred, target_names=CLASS_NAMES))
+            sns.heatmap(
+                cm_norm, annot=True, fmt=".2f", cmap="Blues",
+                xticklabels=CLASS_NAMES, yticklabels=CLASS_NAMES,
+                ax=ax, cbar=False, annot_kws={"size": 8}
+            )
+            ax.set_title(name, color=color, fontsize=14, fontweight="bold")
+            ax.set_xlabel("Predicted", color="white", fontsize=10)
+            ax.set_ylabel("Actual",    color="white", fontsize=10)
+            ax.tick_params(colors="white", labelsize=8)
+            ax.set_xticklabels(CLASS_NAMES, rotation=45, ha="right", color="white")
+            ax.set_yticklabels(CLASS_NAMES, rotation=0,  color="white")
+            ax.set_facecolor("#0D1B2A")
+
+            print(f"\n  Classification Report - {name}:")
+            print(classification_report(y_true, y_pred, target_names=CLASS_NAMES, zero_division=0))
+
+        except Exception as e:
+            print(f"  Error predicting with {name}: {e}")
+            ax.set_title(f"{name}\n(prediction error)", color="red", fontsize=12)
+            ax.set_facecolor("#0D1B2A")
 
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_DIR, "4_confusion_matrices.png"), dpi=150, bbox_inches="tight")
@@ -215,8 +242,8 @@ def plot_model_comparison(all_results):
     fig.suptitle("Model Comparison", color="white", fontsize=16, fontweight="bold")
 
     metrics = [
-        (accuracies,     "Test Accuracy",      axes[0]),
-        (maps,           "Test mAP",           axes[1]),
+        (accuracies,     "Test Accuracy",       axes[0]),
+        (maps,           "Test mAP",            axes[1]),
         (training_times, "Training Time (min)", axes[2]),
     ]
 
@@ -228,6 +255,7 @@ def plot_model_comparison(all_results):
         ax.tick_params(colors="white")
         ax.spines[["top", "right"]].set_visible(False)
         ax.spines[["left", "bottom"]].set_color("#444")
+        ax.set_xticks(range(len(MODEL_NAMES)))
         ax.set_xticklabels(MODEL_NAMES, color="white", fontsize=11)
 
         for bar, val in zip(bars, values):
@@ -244,18 +272,19 @@ def plot_model_comparison(all_results):
     print("  Saved: 5_model_comparison.png")
 
 # ─────────────────────────────────────────────────────────────
-# PLOT 6: Per-Class mAP Heatmap
+# PLOT 6: Per-Class mAP Heatmap — FIXED
 # ─────────────────────────────────────────────────────────────
 def plot_per_class_map(all_results):
     print("Plotting per-class mAP heatmap...")
 
-    data = np.array([
-        [all_results[m]["per_class_ap"][c.lower().replace(" ", "_") + "_shark"]
-         if c.lower().replace(" ", "_") + "_shark" in all_results[m]["per_class_ap"]
-         else all_results[m]["per_class_ap"].get(list(all_results[m]["per_class_ap"].keys())[i], 0)
-         for i, c in enumerate(CLASS_NAMES)]
-        for m in MODEL_NAMES
-    ])
+    data = []
+    for m in MODEL_NAMES:
+        per_class = all_results[m]["per_class_ap"]
+        keys      = list(per_class.keys())
+        row       = [float(per_class[keys[i]]) if i < len(keys) else 0.0
+                     for i in range(len(CLASS_NAMES))]
+        data.append(row)
+    data = np.array(data)
 
     fig, ax = plt.subplots(figsize=(14, 5))
     fig.patch.set_facecolor("#0D1B2A")
@@ -268,10 +297,10 @@ def plot_per_class_map(all_results):
     )
     ax.set_title("Per-Class Average Precision (AP) per Model", color="white", fontsize=14, fontweight="bold")
     ax.set_xlabel("Shark Species", color="white", fontsize=11)
-    ax.set_ylabel("Model", color="white", fontsize=11)
+    ax.set_ylabel("Model",         color="white", fontsize=11)
     ax.tick_params(colors="white")
     ax.set_xticklabels(CLASS_NAMES, rotation=30, ha="right", color="white", fontsize=10)
-    ax.set_yticklabels(MODEL_NAMES, rotation=0, color="white", fontsize=11)
+    ax.set_yticklabels(MODEL_NAMES, rotation=0,  color="white", fontsize=11)
 
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_DIR, "6_per_class_map.png"), dpi=150, bbox_inches="tight")
@@ -279,7 +308,7 @@ def plot_per_class_map(all_results):
     print("  Saved: 6_per_class_map.png")
 
 # ─────────────────────────────────────────────────────────────
-# FINAL CONCLUSION (printed + saved to text file)
+# FINAL CONCLUSION
 # ─────────────────────────────────────────────────────────────
 def print_conclusion(all_results):
     conclusion_lines = []
@@ -299,17 +328,15 @@ def print_conclusion(all_results):
         log(f"  {name:<15} {r['test_accuracy']:>10.4f} {r['test_map']:>10.4f} {r['training_time']:>12.1f}")
     log()
 
-    # Determine best model per metric
     best_acc  = max(MODEL_NAMES, key=lambda m: all_results[m]["test_accuracy"])
     best_map  = max(MODEL_NAMES, key=lambda m: all_results[m]["test_map"])
     best_time = min(MODEL_NAMES, key=lambda m: all_results[m]["training_time"])
 
-    log(f"  Best Accuracy      : {best_acc}  ({all_results[best_acc]['test_accuracy']*100:.2f}%)")
-    log(f"  Best mAP           : {best_map}  ({all_results[best_map]['test_map']:.4f})")
-    log(f"  Fastest Training   : {best_time} ({all_results[best_time]['training_time']:.1f} min)")
+    log(f"  Best Accuracy    : {best_acc}  ({all_results[best_acc]['test_accuracy']*100:.2f}%)")
+    log(f"  Best mAP         : {best_map}  ({all_results[best_map]['test_map']:.4f})")
+    log(f"  Fastest Training : {best_time} ({all_results[best_time]['training_time']:.1f} min)")
     log()
 
-    # Model parameters (approximate)
     param_counts = {
         "ResNet50"    : "~25.6M",
         "DenseNet121" : "~8.0M",
@@ -324,9 +351,9 @@ def print_conclusion(all_results):
     log("  the recommended model for shark species classification is")
     log("  determined by balancing all four criteria:")
     log()
-    log("  - If ACCURACY is the top priority   → choose ResNet50")
-    log("  - If EFFICIENCY is the top priority → choose MobileNetV3")
-    log("  - If BALANCE is the priority        → choose DenseNet121")
+    log("  - If ACCURACY is the top priority   -> choose ResNet50")
+    log("  - If EFFICIENCY is the top priority -> choose MobileNetV3")
+    log("  - If BALANCE is the priority        -> choose DenseNet121")
     log()
     log("  For a deployment scenario (e.g., mobile app or edge device),")
     log("  MobileNetV3 is the best choice due to its small size and")
@@ -336,7 +363,6 @@ def print_conclusion(all_results):
     log("  ResNet50 or DenseNet121 are preferred.")
     log("=" * 65)
 
-    # Save conclusion to file
     conclusion_path = os.path.join(PLOTS_DIR, "conclusion.txt")
     with open(conclusion_path, "w") as f:
         f.write("\n".join(conclusion_lines))
