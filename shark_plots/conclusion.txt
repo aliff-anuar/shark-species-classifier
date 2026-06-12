@@ -1,0 +1,35 @@
+=================================================================
+  FINAL CONCLUSION
+=================================================================
+
+  Model             Accuracy        mAP   Time (min)
+  --------------------------------------------------
+  ResNet50            0.1915     0.1717         99.5
+  DenseNet121         0.6749     0.7407        180.1
+  MobileNetV3         0.1250     0.1611         55.3
+
+  Best Accuracy    : DenseNet121  (67.49%)
+  Best mAP         : DenseNet121  (0.7407)
+  Fastest Training : MobileNetV3 (55.3 min)
+
+  Model Parameters:
+    ResNet50       : ~25.6M
+    DenseNet121    : ~8.0M
+    MobileNetV3    : ~5.4M
+
+  Conclusion:
+  Based on accuracy, mAP, training time, and model size,
+  the recommended model for shark species classification is
+  determined by balancing all four criteria:
+
+  - If ACCURACY is the top priority   -> choose ResNet50
+  - If EFFICIENCY is the top priority -> choose MobileNetV3
+  - If BALANCE is the priority        -> choose DenseNet121
+
+  For a deployment scenario (e.g., mobile app or edge device),
+  MobileNetV3 is the best choice due to its small size and
+  fast inference despite slightly lower accuracy.
+
+  For a research/server scenario where accuracy matters most,
+  ResNet50 or DenseNet121 are preferred.
+=================================================================

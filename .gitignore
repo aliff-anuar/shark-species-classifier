@@ -1,0 +1,4 @@
+shark_results/*.h5 
+shark_dataset/ 
+shark_results/*.keras 
+shark_results/*.h5 
