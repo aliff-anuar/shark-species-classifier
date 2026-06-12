@@ -1,6 +1,12 @@
 <<<<<<< HEAD
 # Shark Species Classification — ISB46703 AI Project
 
+Made by:
+1. Muhammad Aliff bin Anuar - B03
+2. Ahmad Fahim bin Zulkifli - B03
+
+Group: 24
+
 ## Domain: Animal Subspecies (Shark)
 ## Classes: 8 shark species
 ## Models: ResNet50, DenseNet121, MobileNetV3
