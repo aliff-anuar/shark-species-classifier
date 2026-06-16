@@ -13,6 +13,23 @@ Group: 24
 
 ---
 
+## Dataset & Trained Models
+
+The image dataset (~10,000 images, ~1 GB) and the trained model weights
+(`.keras`, up to ~217 MB each) are **too large to commit directly to the
+repo** (GitHub's per-file limit is 100 MB). They are provided two ways:
+
+1. **GitHub Releases** — `shark_dataset.zip` and `shark_results.zip` are
+   attached under the [Releases](../../releases) section of this repo.
+   Download and unzip them into the project root.
+2. **Regenerate from scratch** — run `step1` → `step2` → `step3` to
+   re-crawl and rebuild `shark_dataset/` (the crawler is reproducible).
+
+The repository itself contains all code, the six result plots, the
+conclusion, and the per-model results JSON files.
+
+---
+
 ## How to Run (in order)
 
 ```bash
